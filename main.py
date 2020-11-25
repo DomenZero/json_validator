@@ -1,7 +1,27 @@
+'''
+JSON script validation for JSON schema.
+
+Libraries
+For JSON analysis 'json': pip install jsonschema
+For HTML output 'dominate': pip install dominate
+
+Start from console
+> python main.py --fscript "./event" --fschema "./schema/"
+'''
+
 import os # for read files
 import json
 import jsonschema
-from jsonschema import validate
+from jsonschema import validate, Draft7Validator
+import dominate
+from dominate.tags import *
+import logging
+import argparse
+import sys
+import csv
+# from jsonschema.validators import extend
+# from openpyxl import Workbook
+# from threading import Thread
 
 # read all files in a folder
 def read_all_files(files_folder):
@@ -46,17 +66,17 @@ def validate_json(json_data,name):
 
 # Good or Bad JSON
 def validate_json_2(json_data,execute_api_schema):
-    # execute_api_schema = get_schema(name)
 
     try:
         validate(instance=json_data, schema=execute_api_schema)
-        # validate(instance=json_data, schema=execute_api_schema)
     except jsonschema.exceptions.ValidationError as err:
         print(err)
-        err = "Attention: JSON data is BAD"
-        return False, err
+        logging.basicConfig(filename='app.log', filemode='w', format='%(name)s - %(levelname)s - %(message)s')
+        logging.warning(err)
+        erro = "JSON data is BAD"
+        return False, err.message, erro
 
-    valid_message = "Attention: JSON data is correct"
+    valid_message = "JSON data is correct"
     return True, valid_message
 # Compare a JSON script with a JSON schema
 def compare_json_script_schema(get_json_name,get_json_schema):
@@ -68,8 +88,12 @@ def compare_json_script_schema_2(get_json_script,get_json_schema):
     is_valid, msg = validate_json_2(get_json_script, get_json_schema)
     print(msg)
 
-def read_all_folders(files_script_folder,files_schema_folder):
+def read_all_folders(files_script_folder, files_schema_folder):
+    result = []
     i = int(0)
+    messa=[]
+    JSON_script=[]
+    JSON_schema=[]
     for dirpath, dirs, files in os.walk(files_script_folder):
         for filename_script in files:
             fname_script = os.path.join(dirpath, filename_script)
@@ -81,33 +105,72 @@ def read_all_folders(files_script_folder,files_schema_folder):
                     for filename_schema in files1:
                         fname_schema = os.path.join(dirpath1, filename_schema)
                         with open(fname_schema) as schema_file:
+                            print(f'JSON_file: {fname_script} JSON_schema: {fname_schema}\n')
                             i += 1
                             # print(schema_file.read())
+
                             schema = json.load(schema_file)
-                            is_valid, msg = validate_json_2(data, schema)
-                            print(f'___{fname_script}____{fname_schema}__\n')
-        print(f'How many files in the directories?: {i}')
+                            Draft7Validator.check_schema(schema)
+                            iter_errors, msg, erro = validate_json_2(data, schema)
+                            messa.append(msg)
+                            JSON_script.append(fname_script)
+                            JSON_schema.append(fname_schema)
+                            print(f'Error: {iter_errors} , {msg}, {erro}')
+
+        print(f'How many files in the directories?: {i} {msg}')
+        create_html(i, messa,JSON_script,JSON_schema)
+
+
+def create_html(range_files, msg, JSON_script_files, JSON_schema_files):
+    html_table_headers = ['JSON script', 'JSON schema', 'Error']
+    doc = dominate.document(title='JSON validator')
+
+    with doc.head:
+        link(rel='stylesheet', href='style.css')
+        script(type='text/javascript', src='script.js')
+
+    with doc:
+        with div(cls='container'):
+            with table(id='main', cls='table table-striped'):
+                caption(h3('JSON valid'))
+                with thead():
+                    with tr():
+                        for table_head in html_table_headers:
+                            th(table_head)
+                with tbody():
+                    for i in range(range_files):
+                        with tr():
+                            td(JSON_script_files[i])
+                            td(JSON_schema_files[i])
+                            td(msg[i])
+    with open('index.html', 'w') as file:
+        file.write(doc.render())
+
+def createParser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument ('-fs', '--fscript')
+    parser.add_argument ('-fsm', '--fschema')
+
+    return parser
+
+if __name__ == "__main__":
+    parser = createParser()
+    console_args = parser.parse_args(sys.argv[1:])
+    print(console_args)
+    get_json_script_folder=str(console_args.fscript)
+    get_json_schema_folder = str(console_args.fschema)
+    read_all_folders(get_json_script_folder,get_json_schema_folder)
+
 
 # Convert json to python object.
 # Valid
-# jsonData = json.loads('{"id" : 10,"name": "DonOfDen","contact_number":1234567890}')
 # Define test
-get_json_script_folder='./event/'
-get_json_schema_folder='./schema/'
+# get_json_script_folder='./event/'
+# get_json_schema_folder='./schema/'
 # read_all_files(get_json_script_folder)
-get_json_name='1.json'
-get_json_schema='1.schema'
-# Test 1 file
-# jsonData = get_json(get_json_name)
-# jsonSchema = get_schema(get_json_schema)
-# is_valid, msg = validate_json_2(jsonData,jsonSchema)
+# get_json_name='1.json'
+# get_json_schema='1.schema'
 
-
-# end define test
-# compare_json_script_schema(get_json_name,get_json_schema)
-# print(read_all_folders(get_json_script_folder))
-
-read_all_folders(get_json_script_folder,get_json_schema_folder)
 
 # print(f'{get_json(get_json_name)}')
 # jsonData = json.loads(get_json(get_json_name))
